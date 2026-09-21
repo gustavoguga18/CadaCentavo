@@ -19,6 +19,7 @@ const cats = [
 let user = null;
 let tx = [];
 let goals = [];
+let goalMovements = [];
 let selectedMonth = new Date().toISOString().slice(0, 7);
 let selectedGoal = null;
 
@@ -33,14 +34,26 @@ const money = value =>
 const dateBR = value =>
   new Date(value + "T12:00:00").toLocaleDateString("pt-BR");
 
-const esc = value =>
-  String(value ?? "").replace(/[&<>"']/g, char => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;"
-  }[char]));
+const dateTimeBR = value =>
+  new Date(value).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+
+const esc = s =>
+  String(s ?? "").replace(
+    /[&<>"']/g,
+    c => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[c])
+  );
 
 function msg(el, text, ok = false) {
   if (!el) return;
@@ -50,39 +63,37 @@ function msg(el, text, ok = false) {
 }
 
 function open(id) {
-  $(id)?.classList.remove("hidden");
+  const el = $(id);
+  if (el) el.classList.remove("hidden");
 }
 
 function close(id) {
-  $(id)?.classList.add("hidden");
+  const el = $(id);
+  if (el) el.classList.add("hidden");
 }
 
-function page(pageName) {
+function page(p) {
   document
     .querySelectorAll(".page")
-    .forEach(element => element.classList.add("hidden"));
+    .forEach(x => x.classList.add("hidden"));
 
-  $(`${pageName}-page`)?.classList.remove("hidden");
+  const target = $(`${p}-page`);
+
+  if (target) {
+    target.classList.remove("hidden");
+  }
 
   document
     .querySelectorAll(".nav")
-    .forEach(element => {
-      element.classList.toggle(
-        "active",
-        element.dataset.page === pageName
-      );
-    });
+    .forEach(x =>
+      x.classList.toggle("active", x.dataset.page === p)
+    );
 
   window.scrollTo({
     top: 0,
     behavior: "smooth"
   });
 }
-
-
-/* =========================
-   MESES
-========================= */
 
 function initMonths() {
   const select = $("month-filter");
@@ -94,33 +105,30 @@ function initMonths() {
   const now = new Date();
 
   for (let i = 0; i < 13; i++) {
-    const date = new Date(
+    const d = new Date(
       now.getFullYear(),
       now.getMonth() - i,
       1
     );
 
-    const value = date.toISOString().slice(0, 7);
+    const value = d.toISOString().slice(0, 7);
 
-    const label = date.toLocaleDateString("pt-BR", {
+    const label = d.toLocaleDateString("pt-BR", {
       month: "long",
       year: "numeric"
     });
 
-    select.innerHTML += `
-      <option value="${value}">
-        ${label.charAt(0).toUpperCase() + label.slice(1)}
-      </option>
-    `;
+    const option = document.createElement("option");
+
+    option.value = value;
+    option.textContent =
+      label.charAt(0).toUpperCase() + label.slice(1);
+
+    select.appendChild(option);
   }
 
   select.value = selectedMonth;
 }
-
-
-/* =========================
-   CATEGORIAS
-========================= */
 
 function fillCats() {
   const select = $("tx-category");
@@ -128,211 +136,184 @@ function fillCats() {
   if (!select) return;
 
   select.innerHTML = cats
-    .map(category => `<option>${category}</option>`)
+    .map(c => `<option value="${esc(c)}">${esc(c)}</option>`)
     .join("");
 }
-
 
 /* =========================
    CARREGAR DADOS
 ========================= */
 
 async function load() {
-  const [transactionsResult, goalsResult] =
-    await Promise.all([
+  const [
+    transactionsResult,
+    goalsResult,
+    movementsResult
+  ] = await Promise.all([
+    sb
+      .from("transactions")
+      .select("*")
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false }),
 
-      sb
-        .from("transactions")
-        .select("*")
-        .order("date", {
-          ascending: false
-        })
-        .order("created_at", {
-          ascending: false
-        }),
+    sb
+      .from("goals")
+      .select("*")
+      .order("created_at", { ascending: false }),
 
-      sb
-        .from("goals")
-        .select("*")
-        .order("created_at", {
-          ascending: false
-        })
+    sb
+      .from("goal_movements")
+      .select("*")
+      .order("created_at", { ascending: false })
+  ]);
 
-    ]);
-
-  if (transactionsResult.error)
+  if (transactionsResult.error) {
     throw transactionsResult.error;
+  }
 
-  if (goalsResult.error)
+  if (goalsResult.error) {
     throw goalsResult.error;
+  }
+
+  if (movementsResult.error) {
+    throw movementsResult.error;
+  }
 
   tx = transactionsResult.data || [];
   goals = goalsResult.data || [];
+  goalMovements = movementsResult.data || [];
 
   render();
 }
 
-
 /* =========================
-   DASHBOARD
+   RENDER PRINCIPAL
 ========================= */
 
 function render() {
-  const monthTransactions = tx.filter(
-    transaction =>
-      String(transaction.date).slice(0, 7) === selectedMonth
+  const mtx = tx.filter(
+    t => String(t.date).slice(0, 7) === selectedMonth
   );
 
-  const income = monthTransactions
-    .filter(transaction => transaction.type === "income")
-    .reduce(
-      (sum, transaction) =>
-        sum + Number(transaction.amount),
-      0
-    );
+  const inc = mtx
+    .filter(t => t.type === "income")
+    .reduce((sum, t) => sum + Number(t.amount), 0);
 
-  const expense = monthTransactions
-    .filter(transaction => transaction.type === "expense")
-    .reduce(
-      (sum, transaction) =>
-        sum + Number(transaction.amount),
-      0
-    );
+  const exp = mtx
+    .filter(t => t.type === "expense")
+    .reduce((sum, t) => sum + Number(t.amount), 0);
 
-  const balance = income - expense;
+  if ($("balance")) {
+    $("balance").textContent = money(inc - exp);
+  }
 
-  if ($("balance"))
-    $("balance").textContent = money(balance);
+  if ($("income")) {
+    $("income").textContent = money(inc);
+  }
 
-  if ($("income"))
-    $("income").textContent = money(income);
+  if ($("expense")) {
+    $("expense").textContent = money(exp);
+  }
 
-  if ($("expense"))
-    $("expense").textContent = money(expense);
-
-  if ($("transaction-count"))
-    $("transaction-count").textContent =
-      monthTransactions.length;
+  if ($("transaction-count")) {
+    $("transaction-count").textContent = mtx.length;
+  }
 
   if ($("balance-status")) {
     $("balance-status").textContent =
-      balance >= 0
+      inc - exp >= 0
         ? "Saldo positivo neste mês"
         : "Atenção: despesas acima das entradas";
   }
 
-  renderCategories(monthTransactions);
-  renderRecent(monthTransactions);
+  renderCategories(mtx);
+  renderRecent(mtx);
   renderTable();
   renderGoals();
 }
-
 
 /* =========================
    CATEGORIAS
 ========================= */
 
-function renderCategories(monthTransactions) {
+function renderCategories(mtx) {
   const map = {};
 
-  monthTransactions
-    .filter(transaction => transaction.type === "expense")
-    .forEach(transaction => {
-      map[transaction.category] =
-        (map[transaction.category] || 0) +
-        Number(transaction.amount);
+  mtx
+    .filter(t => t.type === "expense")
+    .forEach(t => {
+      map[t.category] =
+        (map[t.category] || 0) + Number(t.amount);
     });
 
-  const entries = Object.entries(map)
-    .sort((a, b) => b[1] - a[1]);
+  const arr = Object.entries(map).sort(
+    (a, b) => b[1] - a[1]
+  );
 
   const max = Math.max(
-    ...entries.map(item => item[1]),
+    ...arr.map(x => x[1]),
     1
   );
 
   if (!$("category-list")) return;
 
-  $("category-list").innerHTML = entries.length
+  $("category-list").innerHTML = arr.length
+    ? arr
+        .map(
+          ([category, value]) => `
+            <div class="cat-row">
+              <span>${esc(category)}</span>
 
-    ? entries
-        .map(([category, value]) => `
-          <div class="cat-row">
+              <div class="bar">
+                <i style="width:${(value / max) * 100}%"></i>
+              </div>
 
-            <span>
-              ${esc(category)}
-            </span>
-
-            <div class="bar">
-              <i style="width:${value / max * 100}%"></i>
+              <strong>${money(value)}</strong>
             </div>
-
-            <strong>
-              ${money(value)}
-            </strong>
-
-          </div>
-        `)
+          `
+        )
         .join("")
-
-    : `
-      <p class="muted">
-        Nenhuma despesa neste mês.
-      </p>
-    `;
+    : `<p class="muted">Nenhuma despesa neste mês.</p>`;
 }
-
 
 /* =========================
    RECENTES
 ========================= */
 
-function renderRecent(monthTransactions) {
-  const recent = monthTransactions.slice(0, 5);
+function renderRecent(mtx) {
+  const recent = mtx.slice(0, 5);
 
   if (!$("recent-list")) return;
 
   $("recent-list").innerHTML = recent.length
     ? recent.map(row).join("")
-    : `
-      <p class="muted">
-        Nenhum lançamento neste mês.
-      </p>
-    `;
+    : `<p class="muted">Nenhum lançamento neste mês.</p>`;
 }
 
-
-/* =========================
-   LINHA DE LANÇAMENTO
-========================= */
-
-function row(transaction) {
+function row(t) {
   return `
     <div class="tx-row">
-
       <div>
-
         <div class="tx-title">
-          ${esc(transaction.description)}
+          ${esc(t.description)}
         </div>
 
         <div class="tx-meta">
-          ${esc(transaction.category)}
-          · ${dateBR(transaction.date)}
-          · ${esc(transaction.payment_method || "—")}
+          ${esc(t.category)}
+          ·
+          ${dateBR(t.date)}
+          ·
+          ${esc(t.payment_method || "—")}
         </div>
-
       </div>
 
-      <strong class="${transaction.type}">
-        ${transaction.type === "income" ? "+" : "−"}
-        ${money(transaction.amount)}
+      <strong class="${t.type}">
+        ${t.type === "income" ? "+" : "−"}
+        ${money(t.amount)}
       </strong>
-
     </div>
   `;
 }
-
 
 /* =========================
    TABELA
@@ -341,101 +322,77 @@ function row(transaction) {
 function renderTable() {
   if (!$("transactions-table")) return;
 
-  const search =
-    ($("search")?.value || "").toLowerCase();
+  const q = (
+    $("search")?.value || ""
+  ).toLowerCase();
 
-  const type =
-    $("type-filter")?.value || "";
+  const typ = $("type-filter")?.value || "";
 
-  const filtered = tx.filter(transaction => {
+  const arr = tx.filter(t => {
+    const monthMatch =
+      String(t.date).slice(0, 7) === selectedMonth;
 
-    const month =
-      String(transaction.date).slice(0, 7) ===
-      selectedMonth;
+    const typeMatch =
+      !typ || t.type === typ;
 
-    const matchesType =
-      !type || transaction.type === type;
+    const searchMatch =
+      `${t.description} ${t.category}`
+        .toLowerCase()
+        .includes(q);
 
-    const text =
-      `${transaction.description} ${transaction.category}`
-        .toLowerCase();
-
-    const matchesSearch =
-      text.includes(search);
-
-    return (
-      month &&
-      matchesType &&
-      matchesSearch
-    );
+    return monthMatch && typeMatch && searchMatch;
   });
 
-  $("transactions-table").innerHTML =
-    filtered.length
-
-      ? filtered
-          .map(transaction => `
+  $("transactions-table").innerHTML = arr.length
+    ? arr
+        .map(
+          t => `
             <tr>
+              <td>${dateBR(t.date)}</td>
 
               <td>
-                ${dateBR(transaction.date)}
+                <b>${esc(t.description)}</b>
               </td>
 
               <td>
-                <b>
-                  ${esc(transaction.description)}
-                </b>
-              </td>
-
-              <td>
-                <span class="pill ${transaction.type}">
-                  ${esc(transaction.category)}
+                <span class="pill ${t.type}">
+                  ${esc(t.category)}
                 </span>
               </td>
 
               <td>
-                ${esc(
-                  transaction.payment_method || "—"
-                )}
+                ${esc(t.payment_method || "—")}
               </td>
 
-              <td class="${transaction.type}">
+              <td class="${t.type}">
                 <b>
-                  ${
-                    transaction.type === "income"
-                      ? "+"
-                      : "−"
-                  }
-                  ${money(transaction.amount)}
+                  ${t.type === "income" ? "+" : "−"}
+                  ${money(t.amount)}
                 </b>
               </td>
 
               <td>
                 <button
                   class="delete"
-                  data-id="${transaction.id}">
+                  data-id="${t.id}"
+                >
                   Excluir
                 </button>
               </td>
-
             </tr>
-          `)
-          .join("")
-
-      : `
-        <tr>
-          <td
-            colspan="6"
-            style="
-              text-align:center;
-              color:#98a2b3;
-              padding:35px;
-            "
-          >
-            Nenhum lançamento encontrado.
-          </td>
-        </tr>
-      `;
+          `
+        )
+        .join("")
+    : `
+      <tr>
+        <td
+          colspan="6"
+          style="text-align:center;color:#98a2b3;padding:35px"
+        >
+          Nenhum lançamento encontrado.
+        </td>
+      </tr>
+    `;
 
   document
     .querySelectorAll("[data-id]")
@@ -444,29 +401,6 @@ function renderTable() {
         del(button.dataset.id);
     });
 }
-
-
-/* =========================
-   EXCLUIR LANÇAMENTO
-========================= */
-
-async function del(id) {
-  if (!confirm("Excluir este lançamento?"))
-    return;
-
-  const result = await sb
-    .from("transactions")
-    .delete()
-    .eq("id", id);
-
-  if (result.error) {
-    alert(result.error.message);
-    return;
-  }
-
-  await load();
-}
-
 
 /* =========================
    METAS
@@ -488,218 +422,230 @@ function renderGoals() {
   }
 
   $("goals-list").innerHTML = goals
-    .map(goal => {
-
-      const target =
-        Number(goal.target_amount);
-
-      const current =
-        Number(goal.current_amount);
-
-      const percentage =
-        target > 0
-          ? Math.min(
-              current / target * 100,
-              100
-            )
-          : 0;
-
-      const remaining =
-        Math.max(
-          target - current,
-          0
-        );
-
-      const completed =
-        current >= target;
-
-      return `
-        <article class="goal">
-
-          <div class="goal-header">
-
-            <div>
-              <h3>
-                ${esc(goal.name)}
-              </h3>
-
-              ${
-                completed
-                  ? `
-                    <span class="goal-complete">
-                      Meta concluída 🎉
-                    </span>
-                  `
-                  : ""
-              }
-
-            </div>
-
-            <button
-              class="goal-add-button"
-              data-add-goal="${goal.id}"
-            >
-              + Adicionar dinheiro
-            </button>
-
-          </div>
-
-          <div class="goal-values">
-
-            <span>
-              ${money(current)}
-            </span>
-
-            <span>
-              ${money(target)}
-            </span>
-
-          </div>
-
-          <div class="progress">
-
-            <i
-              style="width:${percentage}%">
-            </i>
-
-          </div>
-
-          <div class="goal-values">
-
-            <span>
-              ${percentage.toFixed(0)}% concluído
-            </span>
-
-            <span>
-              ${
-                remaining > 0
-                  ? `faltam ${money(remaining)}`
-                  : "Objetivo alcançado"
-              }
-            </span>
-
-          </div>
-
-        </article>
-      `;
-    })
+    .map(goalCard)
     .join("");
 
   document
-    .querySelectorAll("[data-add-goal]")
+    .querySelectorAll(".goal-add")
     .forEach(button => {
-
       button.onclick = () =>
-        openAddGoalModal(
-          button.dataset.addGoal
+        openMovementModal(
+          button.dataset.goal,
+          "add"
         );
+    });
 
+  document
+    .querySelectorAll(".goal-remove")
+    .forEach(button => {
+      button.onclick = () =>
+        openMovementModal(
+          button.dataset.goal,
+          "remove"
+        );
+    });
+
+  document
+    .querySelectorAll(".goal-history")
+    .forEach(button => {
+      button.onclick = () =>
+        openGoalHistory(button.dataset.goal);
+    });
+
+  document
+    .querySelectorAll(".goal-delete")
+    .forEach(button => {
+      button.onclick = () =>
+        deleteGoal(button.dataset.goal);
     });
 }
 
+function goalCard(goal) {
+  const target = Number(goal.target_amount);
+  const current = Number(goal.current_amount);
+
+  const percentage =
+    target > 0
+      ? Math.min((current / target) * 100, 100)
+      : 0;
+
+  const movementCount = goalMovements.filter(
+    movement => movement.goal_id === goal.id
+  ).length;
+
+  return `
+    <article class="goal">
+
+      <div class="goal-header">
+        <div>
+          <h3>${esc(goal.name)}</h3>
+
+          <span class="goal-history-count">
+            ${movementCount}
+            ${movementCount === 1 ? "movimentação" : "movimentações"}
+          </span>
+        </div>
+
+        <button
+          class="goal-delete"
+          data-goal="${goal.id}"
+          title="Excluir meta"
+        >
+          Excluir
+        </button>
+      </div>
+
+      <div class="goal-values">
+        <span>${money(current)}</span>
+        <span>${money(target)}</span>
+      </div>
+
+      <div class="progress">
+        <i style="width:${percentage}%"></i>
+      </div>
+
+      <div class="goal-values">
+        <span>
+          ${percentage.toFixed(0)}% concluído
+        </span>
+
+        <span>
+          faltam ${money(Math.max(target - current, 0))}
+        </span>
+      </div>
+
+      <div class="goal-actions">
+
+        <button
+          class="goal-btn goal-add"
+          data-goal="${goal.id}"
+        >
+          + Adicionar
+        </button>
+
+        <button
+          class="goal-btn goal-remove"
+          data-goal="${goal.id}"
+        >
+          − Retirar
+        </button>
+
+        <button
+          class="goal-btn goal-history"
+          data-goal="${goal.id}"
+        >
+          Histórico
+        </button>
+
+      </div>
+
+    </article>
+  `;
+}
 
 /* =========================
-   ABRIR MODAL DE ADICIONAR
+   MOVIMENTAR META
 ========================= */
 
-function openAddGoalModal(goalId) {
-
-  const goal =
-    goals.find(item => item.id === goalId);
+function openMovementModal(goalId, type) {
+  const goal = goals.find(g => g.id === goalId);
 
   if (!goal) return;
 
   selectedGoal = goal;
 
-  const target =
-    Number(goal.target_amount);
+  const title =
+    type === "add"
+      ? "Adicionar valor"
+      : "Retirar valor";
 
-  const current =
-    Number(goal.current_amount);
+  const description =
+    type === "add"
+      ? `Adicionar dinheiro à meta "${goal.name}".`
+      : `Retirar dinheiro da meta "${goal.name}".`;
 
-  const remaining =
-    Math.max(target - current, 0);
+  if ($("movement-title")) {
+    $("movement-title").textContent = title;
+  }
 
-  if ($("add-goal-name"))
-    $("add-goal-name").textContent =
-      goal.name;
+  if ($("movement-description")) {
+    $("movement-description").textContent =
+      description;
+  }
 
-  if ($("add-goal-current"))
-    $("add-goal-current").textContent =
-      money(current);
+  if ($("movement-type")) {
+    $("movement-type").value = type;
+  }
 
-  if ($("add-goal-target"))
-    $("add-goal-target").textContent =
-      money(target);
+  if ($("movement-amount")) {
+    $("movement-amount").value = "";
+  }
 
-  if ($("add-goal-remaining"))
-    $("add-goal-remaining").textContent =
-      money(remaining);
+  if ($("movement-message")) {
+    $("movement-message").textContent = "";
+  }
 
-  if ($("goal-add-amount"))
-    $("goal-add-amount").value = "";
-
-  if ($("goal-add-message"))
-    $("goal-add-message").textContent = "";
-
-  open("add-goal-modal");
-
-  setTimeout(() => {
-    $("goal-add-amount")?.focus();
-  }, 100);
+  open("movement-modal");
 }
 
-
 /* =========================
-   ADICIONAR DINHEIRO À META
+   SALVAR MOVIMENTAÇÃO
 ========================= */
 
-$("add-goal-form")?.addEventListener(
-  "submit",
-  async event => {
+if ($("movement-form")) {
+  $("movement-form").onsubmit = async e => {
+    e.preventDefault();
 
-    event.preventDefault();
+    if (!selectedGoal) return;
 
-    if (!selectedGoal)
-      return;
+    const type =
+      $("movement-type").value;
 
     const amount =
-      Number(
-        $("goal-add-amount").value
-      );
+      Number($("movement-amount").value);
 
     if (!amount || amount <= 0) {
-
-      msg(
-        $("goal-add-message"),
+      return msg(
+        $("movement-message"),
         "Digite um valor válido."
       );
-
-      return;
     }
 
     const current =
       Number(selectedGoal.current_amount);
 
-    const target =
-      Number(selectedGoal.target_amount);
-
-    const newAmount =
-      current + amount;
-
-    if (newAmount > target) {
-
-      msg(
-        $("goal-add-message"),
-        `Esse valor ultrapassa a meta. Você pode adicionar no máximo ${money(
-          target - current
-        )}.`
+    if (
+      type === "remove" &&
+      amount > current
+    ) {
+      return msg(
+        $("movement-message"),
+        "Você não pode retirar mais do que o valor atual da meta."
       );
-
-      return;
     }
 
-    const result = await sb
+    const newAmount =
+      type === "add"
+        ? current + amount
+        : current - amount;
+
+    const movement = await sb
+      .from("goal_movements")
+      .insert({
+        goal_id: selectedGoal.id,
+        user_id: user.id,
+        type,
+        amount
+      });
+
+    if (movement.error) {
+      return msg(
+        $("movement-message"),
+        movement.error.message
+      );
+    }
+
+    const update = await sb
       .from("goals")
       .update({
         current_amount: newAmount
@@ -707,302 +653,279 @@ $("add-goal-form")?.addEventListener(
       .eq("id", selectedGoal.id)
       .eq("user_id", user.id);
 
-    if (result.error) {
-
-      msg(
-        $("goal-add-message"),
-        result.error.message
+    if (update.error) {
+      return msg(
+        $("movement-message"),
+        update.error.message
       );
-
-      return;
     }
 
-    close("add-goal-modal");
+    close("movement-modal");
 
     selectedGoal = null;
 
     await load();
-  }
-);
-
-
-/* =========================
-   CRIAR META
-========================= */
-
-$("goal-form")?.addEventListener(
-  "submit",
-  async event => {
-
-    event.preventDefault();
-
-    const name =
-      $("goal-name").value.trim();
-
-    const target =
-      Number($("goal-target").value);
-
-    const current =
-      Number($("goal-current").value) || 0;
-
-    if (!name || target <= 0) {
-
-      msg(
-        $("goal-message"),
-        "Preencha os dados da meta."
-      );
-
-      return;
-    }
-
-    if (current > target) {
-
-      msg(
-        $("goal-message"),
-        "O valor inicial não pode ser maior que a meta."
-      );
-
-      return;
-    }
-
-    const result = await sb
-      .from("goals")
-      .insert({
-
-        user_id: user.id,
-
-        name,
-
-        target_amount: target,
-
-        current_amount: current
-
-      });
-
-    if (result.error) {
-
-      msg(
-        $("goal-message"),
-        result.error.message
-      );
-
-      return;
-    }
-
-    event.target.reset();
-
-    close("goal-modal");
-
-    await load();
-  }
-);
-
+  };
+}
 
 /* =========================
-   LOGIN / CADASTRO
+   HISTÓRICO DA META
 ========================= */
 
-$("auth-form")?.addEventListener(
-  "submit",
-  async event => {
+function openGoalHistory(goalId) {
+  const goal = goals.find(g => g.id === goalId);
 
-    event.preventDefault();
+  if (!goal) return;
 
-    const signup =
-      $("auth-title").dataset.signup === "1";
+  const movements = goalMovements.filter(
+    movement => movement.goal_id === goalId
+  );
 
-    const email =
-      $("email").value;
+  if ($("history-title")) {
+    $("history-title").textContent =
+      `Histórico — ${goal.name}`;
+  }
 
-    const password =
-      $("password").value;
+  if (!$("history-list")) return;
 
-    let result;
+  $("history-list").innerHTML =
+    movements.length
+      ? movements
+          .map(
+            movement => `
+              <div class="movement-row">
 
-    if (signup) {
+                <div>
+                  <strong>
+                    ${
+                      movement.type === "add"
+                        ? "Valor adicionado"
+                        : "Valor retirado"
+                    }
+                  </strong>
 
-      result = await sb.auth.signUp({
+                  <small>
+                    ${dateTimeBR(
+                      movement.created_at
+                    )}
+                  </small>
+                </div>
 
+                <strong
+                  class="${
+                    movement.type === "add"
+                      ? "income"
+                      : "expense"
+                  }"
+                >
+                  ${
+                    movement.type === "add"
+                      ? "+"
+                      : "−"
+                  }
+                  ${money(movement.amount)}
+                </strong>
+
+              </div>
+            `
+          )
+          .join("")
+      : `
+        <p class="muted">
+          Nenhuma movimentação registrada.
+        </p>
+      `;
+
+  open("history-modal");
+}
+
+/* =========================
+   EXCLUIR META
+========================= */
+
+async function deleteGoal(goalId) {
+  const goal = goals.find(
+    g => g.id === goalId
+  );
+
+  if (!goal) return;
+
+  const confirmed = confirm(
+    `Excluir a meta "${goal.name}"?\n\nTodas as movimentações dessa meta também serão excluídas.`
+  );
+
+  if (!confirmed) return;
+
+  const result = await sb
+    .from("goals")
+    .delete()
+    .eq("id", goalId)
+    .eq("user_id", user.id);
+
+  if (result.error) {
+    alert(result.error.message);
+    return;
+  }
+
+  await load();
+}
+
+/* =========================
+   EXCLUIR LANÇAMENTO
+========================= */
+
+async function del(id) {
+  if (!confirm("Excluir este lançamento?")) {
+    return;
+  }
+
+  const result = await sb
+    .from("transactions")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (result.error) {
+    alert(result.error.message);
+    return;
+  }
+
+  await load();
+}
+
+/* =========================
+   AUTENTICAÇÃO
+========================= */
+
+$("auth-form").onsubmit = async e => {
+  e.preventDefault();
+
+  const signup =
+    $("auth-title").dataset.signup === "1";
+
+  const email =
+    $("email").value.trim();
+
+  const password =
+    $("password").value;
+
+  const result = signup
+    ? await sb.auth.signUp({
         email,
-
-        password,
-
-        options: {
-
-          emailRedirectTo:
-            window.location.origin +
-            window.location.pathname
-
-        }
-
+        password
+      })
+    : await sb.auth.signInWithPassword({
+        email,
+        password
       });
 
-    } else {
-
-      result =
-        await sb.auth.signInWithPassword({
-
-          email,
-
-          password
-
-        });
-
-    }
-
-    if (result.error) {
-
-      msg(
-        $("auth-message"),
-        result.error.message
-      );
-
-      return;
-    }
-
-    if (
-      signup &&
-      !result.data.session
-    ) {
-
-      msg(
-        $("auth-message"),
-        "Conta criada. Verifique seu e-mail para confirmar.",
-        true
-      );
-
-      return;
-    }
-
-    start(result.data.user);
+  if (result.error) {
+    return msg(
+      $("auth-message"),
+      result.error.message
+    );
   }
-);
 
+  if (
+    signup &&
+    !result.data.session
+  ) {
+    return msg(
+      $("auth-message"),
+      "Conta criada. Verifique seu e-mail para confirmar.",
+      true
+    );
+  }
+
+  start(result.data.user);
+};
+
+$("toggle-auth").onclick = () => {
+  const signup =
+    $("auth-title").dataset.signup !== "1";
+
+  $("auth-title").dataset.signup =
+    signup ? "1" : "0";
+
+  $("auth-title").textContent =
+    signup
+      ? "Criar sua conta"
+      : "Bem-vindo de volta";
+
+  $("auth-submit").textContent =
+    signup
+      ? "Criar conta"
+      : "Entrar";
+
+  $("toggle-auth").textContent =
+    signup
+      ? "Já tenho uma conta"
+      : "Criar uma conta";
+
+  $("auth-message").textContent = "";
+};
 
 /* =========================
-   ALTERNAR LOGIN / CADASTRO
+   INICIAR APP
 ========================= */
 
-$("toggle-auth")?.addEventListener(
-  "click",
-  () => {
-
-    const signup =
-      $("auth-title").dataset.signup !== "1";
-
-    $("auth-title").dataset.signup =
-      signup ? "1" : "0";
-
-    $("auth-title").textContent =
-      signup
-        ? "Criar sua conta"
-        : "Bem-vindo de volta";
-
-    $("auth-submit").textContent =
-      signup
-        ? "Criar conta"
-        : "Entrar";
-
-    $("toggle-auth").textContent =
-      signup
-        ? "Já tenho uma conta"
-        : "Criar uma conta";
-
-    $("auth-message").textContent = "";
-  }
-);
-
-
-/* =========================
-   INICIAR SISTEMA
-========================= */
-
-async function start(currentUser) {
-
-  user = currentUser;
+async function start(u) {
+  user = u;
 
   $("auth-screen").classList.add("hidden");
-
   $("app-screen").classList.remove("hidden");
 
   const name =
-    currentUser.email.split("@")[0];
+    u.email.split("@")[0];
 
   $("hello-name").textContent = name;
-
   $("user-name").textContent = name;
-
-  $("user-email").textContent =
-    currentUser.email;
-
+  $("user-email").textContent = u.email;
   $("avatar").textContent =
     name[0].toUpperCase();
 
   initMonths();
-
   fillCats();
 
   if ($("tx-date")) {
     $("tx-date").value =
-      new Date()
-        .toISOString()
-        .slice(0, 10);
+      new Date().toISOString().slice(0, 10);
   }
 
   try {
-
     await load();
-
   } catch (error) {
-
     alert(error.message);
-
   }
 }
-
 
 /* =========================
    LOGOUT
 ========================= */
 
-$("logout-btn")?.addEventListener(
-  "click",
-  async () => {
-
-    await sb.auth.signOut();
-
-    location.reload();
-
-  }
-);
-
+$("logout-btn").onclick = async () => {
+  await sb.auth.signOut();
+  location.reload();
+};
 
 /* =========================
    FILTROS
 ========================= */
 
-$("month-filter")?.addEventListener(
-  "change",
-  event => {
-
-    selectedMonth =
-      event.target.value;
-
+if ($("month-filter")) {
+  $("month-filter").onchange = e => {
+    selectedMonth = e.target.value;
     render();
+  };
+}
 
-  }
-);
+if ($("search")) {
+  $("search").oninput = renderTable;
+}
 
-$("search")?.addEventListener(
-  "input",
-  renderTable
-);
-
-$("type-filter")?.addEventListener(
-  "change",
-  renderTable
-);
-
+if ($("type-filter")) {
+  $("type-filter").onchange = renderTable;
+}
 
 /* =========================
    NAVEGAÇÃO
@@ -1011,114 +934,91 @@ $("type-filter")?.addEventListener(
 document
   .querySelectorAll("[data-page]")
   .forEach(button => {
-
     button.onclick = () =>
       page(button.dataset.page);
-
   });
 
 document
   .querySelectorAll("[data-go]")
   .forEach(button => {
-
     button.onclick = () =>
       page(button.dataset.go);
-
   });
-
 
 /* =========================
    MODAIS
 ========================= */
 
-$("open-transaction")?.addEventListener(
-  "click",
-  () => open("transaction-modal")
-);
+if ($("open-transaction")) {
+  $("open-transaction").onclick =
+    () => open("transaction-modal");
+}
 
-$("open-transaction-quick")?.addEventListener(
-  "click",
-  () => open("transaction-modal")
-);
+if ($("open-transaction-quick")) {
+  $("open-transaction-quick").onclick =
+    () => open("transaction-modal");
+}
 
-$("open-transaction-2")?.addEventListener(
-  "click",
-  () => open("transaction-modal")
-);
+if ($("open-transaction-2")) {
+  $("open-transaction-2").onclick =
+    () => open("transaction-modal");
+}
 
-$("open-goal")?.addEventListener(
-  "click",
-  () => open("goal-modal")
-);
+if ($("open-goal")) {
+  $("open-goal").onclick =
+    () => open("goal-modal");
+}
 
-$("bottom-add")?.addEventListener(
-  "click",
-  () => open("transaction-modal")
-);
+if ($("bottom-add")) {
+  $("bottom-add").onclick =
+    () => open("transaction-modal");
+}
 
 document
   .querySelectorAll("[data-close]")
   .forEach(button => {
-
     button.onclick = () =>
       close(button.dataset.close);
-
   });
-
 
 /* =========================
    NOVO LANÇAMENTO
 ========================= */
 
-$("transaction-form")?.addEventListener(
-  "submit",
-  async event => {
-
-    event.preventDefault();
+$("transaction-form").onsubmit =
+  async e => {
+    e.preventDefault();
 
     const result = await sb
       .from("transactions")
       .insert({
-
         user_id: user.id,
-
         type:
           document.querySelector(
             "[name=type]:checked"
           ).value,
-
         amount:
-          Number(
-            $("tx-amount").value
-          ),
-
+          +$("tx-amount").value,
         category:
           $("tx-category").value,
-
         description:
           $("tx-description")
             .value
             .trim(),
-
         date:
           $("tx-date").value,
-
         payment_method:
           $("tx-payment").value
-
       });
 
     if (result.error) {
-
-      msg(
+      return msg(
         $("tx-message"),
         result.error.message
       );
-
-      return;
     }
 
-    event.target.reset();
+    e.target.reset();
 
     $("tx-date").value =
       new Date()
@@ -1128,42 +1028,68 @@ $("transaction-form")?.addEventListener(
     close("transaction-modal");
 
     await load();
-  }
-);
-
+  };
 
 /* =========================
-   FECHAR MODAL CLICANDO FORA
+   NOVA META
 ========================= */
 
-document
-  .querySelectorAll(".modal")
-  .forEach(modal => {
+$("goal-form").onsubmit =
+  async e => {
+    e.preventDefault();
 
-    modal.addEventListener(
-      "click",
-      event => {
+    const result = await sb
+      .from("goals")
+      .insert({
+        user_id: user.id,
+        name:
+          $("goal-name")
+            .value
+            .trim(),
+        target_amount:
+          +$("goal-target").value,
+        current_amount:
+          +$("goal-current").value || 0
+      });
 
-        if (event.target === modal) {
-          modal.classList.add("hidden");
-        }
+    if (result.error) {
+      return msg(
+        $("goal-message"),
+        result.error.message
+      );
+    }
 
-      }
-    );
+    e.target.reset();
 
-  });
+    close("goal-modal");
 
+    await load();
+  };
 
 /* =========================
-   SESSÃO
+   SESSION
 ========================= */
 
 sb.auth
   .getSession()
   .then(({ data }) => {
-
     if (data.session) {
       start(data.session.user);
     }
-
   });
+
+/* =========================
+   LISTENER DE AUTH
+========================= */
+
+sb.auth.onAuthStateChange(
+  (event, session) => {
+    if (
+      event === "SIGNED_IN" &&
+      session?.user &&
+      !user
+    ) {
+      start(session.user);
+    }
+  }
+);
