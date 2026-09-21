@@ -100,11 +100,11 @@
 <label>Nome da meta<input id="goal-name" placeholder="Ex.: Reserva de emergência" required></label><div class="form-grid"><label>Valor objetivo<input id="goal-target" type="number" min=".01" step=".01" required></label><label>Já guardado<input id="goal-current" type="number" min="0" step=".01" value="0"></label></div>
 <button class="btn primary full">Criar meta</button><div id="goal-message" class="message"></div></form></div></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="js/config.js"></script><script src="js/app.js"></script>
 
 <div class="modal hidden" id="movement-modal"><div class="modal-card"><div class="modal-head"><div><div class="eyebrow">META</div><h2 id="movement-title">Adicionar valor</h2><p id="movement-description"></p></div><button class="close" data-close="movement-modal">×</button></div><form id="movement-form"><input type="hidden" id="movement-type" value="add"><label>Valor<input id="movement-amount" type="number" min=".01" step=".01" placeholder="0,00" required></label><div id="movement-message" class="message"></div><button class="btn primary full">Confirmar</button></form></div></div>
 <div class="modal hidden" id="history-modal"><div class="modal-card"><div class="modal-head"><div><div class="eyebrow">META</div><h2 id="history-title">Histórico</h2></div><button class="close" data-close="history-modal">×</button></div><div id="history-list" class="history-list"></div></div></div>
 <div class="modal hidden" id="backup-modal"><div class="modal-card"><div class="modal-head"><div><div class="eyebrow">BACKUP</div><h2>Importar backup</h2></div><button class="close" data-close="backup-modal">×</button></div><div class="backup-warning"><b>⚠ Atenção</b><p>O backup será adicionado à conta atual. Os dados existentes não serão apagados.</p></div><div id="backup-message" class="message"></div><button id="confirm-import-backup" class="btn primary full">Importar agora</button></div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="js/config.js"></script><script src="js/app.js"></script>
 </body></html>
