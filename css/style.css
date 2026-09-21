@@ -1125,3 +1125,237 @@ td {
   }
 
 }
+/* =========================
+   METAS
+========================= */
+
+.goal {
+  position: relative;
+}
+
+.goal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 18px;
+}
+
+.goal-header h3 {
+  margin: 0 0 5px;
+}
+
+.goal-history-count {
+  font-size: 12px;
+  color: #98a2b3;
+}
+
+.goal-delete {
+  border: 0;
+  background: transparent;
+  color: #f04438;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.goal-delete:hover {
+  background: #fff1f0;
+}
+
+.goal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.goal-btn {
+  border: 1px solid #eaecf0;
+  background: #fff;
+  color: #344054;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: .2s;
+}
+
+.goal-btn:hover {
+  background: #f9fafb;
+  border-color: #d0d5dd;
+}
+
+.goal-add {
+  color: #067647;
+  border-color: #abefc6;
+  background: #ecfdf3;
+}
+
+.goal-add:hover {
+  background: #d1fadf;
+}
+
+.goal-remove {
+  color: #b42318;
+  border-color: #fecdca;
+  background: #fef3f2;
+}
+
+.goal-remove:hover {
+  background: #fee4e2;
+}
+
+.goal-history {
+  color: #344054;
+}
+
+
+/* =========================
+   HISTÓRICO
+========================= */
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.movement-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 14px;
+  border: 1px solid #eaecf0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.movement-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.movement-row small {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.movement-row .income {
+  color: #12b76a;
+}
+
+.movement-row .expense {
+  color: #f04438;
+}
+
+
+/* =========================
+   MODAL
+========================= */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(16, 24, 40, .55);
+  backdrop-filter: blur(5px);
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-box {
+  width: min(100%, 520px);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(16, 24, 40, .2);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 22px;
+}
+
+.modal-header h2 {
+  margin: 0 0 5px;
+}
+
+.modal-header p {
+  margin: 0;
+  color: #667085;
+  font-size: 14px;
+}
+
+.modal-close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: #f2f4f7;
+  color: #344054;
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  background: #eaecf0;
+}
+
+.form-message {
+  min-height: 20px;
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+
+/* =========================
+   RESPONSIVO
+========================= */
+
+@media (max-width: 600px) {
+
+  .modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-box {
+    width: 100%;
+    max-height: 90vh;
+    border-radius: 22px 22px 0 0;
+    padding: 20px;
+  }
+
+  .goal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .goal-history {
+    grid-column: 1 / -1;
+  }
+
+  .movement-row {
+    padding: 12px;
+  }
+}
